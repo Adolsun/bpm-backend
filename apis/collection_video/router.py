@@ -42,8 +42,8 @@ async def create_collection(
 ):
     try:
         collection_data, episodes = get_collection_data_and_episodes(request.bvid)
-        # 保存合集到数据库
         created_collection = create_collection_to_db(session, collection_data)
+
         created_collection_dict = created_collection.model_dump()
 
 
@@ -53,7 +53,7 @@ async def create_collection(
                 'bvid': episode['bvid'],  # bvid
                 'title': episode['title'],  # 标题
                 'duration': episode['arc']['duration'],  # 时长
-                'collection_id': collection_data.season_id,
+                'collection_id': collection_data['season_id'],
                 'order_index': idx
             }
             videos_to_create.append(video_data)
