@@ -55,5 +55,4 @@ def update_video_watched_count_to_db(
     collection = session.exec(statement1).first()
     statement2 = select(Video).where(Video.collection_id == season_id)
     orm_videos = session.exec(statement2).all()
-    # print(orm_videos)
     return collection, orm_videos

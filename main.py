@@ -1,7 +1,20 @@
-from fastapi import FastAPI  # Query 用于获取查询参数
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apis.collection_video.router import router as collection_video_router
 import uvicorn
+import os
+from loguru import logger
+
+os.makedirs("logs", exist_ok=True)
+
+if len(logger._core.handlers) <= 1:
+    logger.add(
+        "logs/app.log",
+        rotation="500 MB",
+        retention="10 days",
+        level="INFO",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}",
+    )
 
 app = FastAPI()
 
@@ -19,5 +32,5 @@ app.add_middleware(
 
 app.include_router(collection_video_router, tags=["合集视频管理"])
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)

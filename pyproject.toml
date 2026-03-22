@@ -28,4 +28,5 @@ dependencies = [
     "typing_extensions==4.15.0",
     "urllib3==2.6.2",
     "uvicorn==0.40.0",
+    "loguru>=0.7.3",
 ]
