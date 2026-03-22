@@ -124,7 +124,6 @@ async def delete_single_collection(
     except HTTPException:
         raise
     except Exception as e:
-        # print(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="系统繁忙，请稍后再试",
@@ -231,7 +230,6 @@ async def update_video(
         )
         collection_dict = collection_obj.model_dump()
         collection_dict["videos"] = [video_obj.model_dump() for video_obj in video_objs]
-        # print(video_objs)
         session.commit()
         return {
             "status": "success",
