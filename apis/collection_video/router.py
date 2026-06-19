@@ -6,11 +6,10 @@ from requests.exceptions import HTTPError, RequestException
 from pydantic import BaseModel
 from loguru import logger
 
-from config import BILIBILI_API_BASE, BILIBILI_HEADERS
 from database import get_session
 from services.collection_service import (
+    batch_update_collection_order,
     create_collection_to_db,
-    get_collection_from_db,
     delete_collection_to_db,
     delete_collections_to_db,
     get_all_collections_from_db,
@@ -39,6 +38,14 @@ class UpdateVideoStatusRequest(BaseModel):
     season_id: int
     videos: List[Video]
     option: int
+
+
+class BatchUpdateCollectionsRequest(BaseModel):
+    season_ids: List[int]
+
+
+class UpdateCollectionOrderRequest(BaseModel):
+    updates: List[Dict[str, int]]
 
 
 # 创建合集 - 从B站API获取信息并保存到数据库
@@ -131,7 +138,7 @@ async def delete_single_collection(
 
 
 # 批量删除合集
-@router.delete("/collection", status_code=status.HTTP_200_OK)
+@router.delete("/collections", status_code=status.HTTP_200_OK)
 async def delete_collections(
     request: DeleteCollectionsRequest, session: Session = Depends(get_session)
 ):
@@ -187,29 +194,21 @@ async def get_collections(session: Session = Depends(get_session)):
         )
 
 
-# 获取单个合集及其中的视频信息
-@router.get("/collection/{season_id}", status_code=status.HTTP_200_OK)
-async def get_collection(season_id: int, session: Session = Depends(get_session)):
+@router.patch("/collection/order", status_code=status.HTTP_200_OK)
+async def update_collection_order(
+    request: UpdateCollectionOrderRequest, session: Session = Depends(get_session)
+):
     try:
-        results = get_collection_from_db(session, season_id)
-        # 这个函数要注意后续变化
-        if not results:
-            return {
-                "status": "success",
-                "code": 200,
-                "message": "获取合集信息成功",
-                "data": None,
-            }
-        data = []
-        for collection_obj, video_obj in results:
-            data.append(video_obj.model_dump())
+        count = batch_update_collection_order(session, request.updates)
+        session.commit()
         return {
             "status": "success",
             "code": 200,
-            "message": "获取合集信息成功",
-            "data": data,
+            "message": f"排序更新成功，更新了 {count} 个合集",
+            "data": None,
         }
     except Exception as e:
+        logger.exception(f"更新合集排序失败: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="系统繁忙，请稍后再试",
@@ -303,3 +302,65 @@ async def update_collection(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="系统繁忙，请稍后再试",
         )
+
+
+# 批量更新合集
+@router.post("/collections/batch-update", status_code=status.HTTP_200_OK)
+async def batch_update_collections(
+    request: BatchUpdateCollectionsRequest, session: Session = Depends(get_session)
+):
+    results: List[Dict[str, Any]] = []
+    errors: List[Dict[str, Any]] = []
+
+    for season_id in request.season_ids:
+        try:
+            temp_watched_status_dict, bvid, created_at, order_index = (
+                update_collection_to_db(session, season_id)
+            )
+            is_delete = delete_collection_to_db(session, season_id)
+            if is_delete:
+                session.flush()
+                collection_data, episodes = get_collection_data_and_episodes(bvid)
+                collection_data["created_at"] = created_at
+                collection_data["order_index"] = order_index
+                created_collection = create_collection_to_db(session, collection_data)
+                collection_dict = created_collection.model_dump()
+                videos_to_create: List[Dict[str, Any]] = []
+                for idx, episode in enumerate(episodes):
+                    episode_bvid = episode["bvid"]
+                    video_data = {
+                        "bvid": episode_bvid,
+                        "title": episode["title"],
+                        "duration": episode["arc"]["duration"],
+                        "collection_id": collection_data["season_id"],
+                        "order_index": idx,
+                    }
+                    if episode_bvid in temp_watched_status_dict:
+                        status_info = temp_watched_status_dict[episode_bvid]
+                        video_data["watched_count"] = status_info[0]
+                        video_data["status"] = status_info[1]
+                    videos_to_create.append(video_data)
+                created_videos = create_video_to_db(session, videos_to_create)
+                videos_list = [v.model_dump() for v in created_videos]
+                collection_dict["videos"] = videos_list
+                results.append(
+                    {
+                        "season_id": season_id,
+                        "status": "success",
+                        "data": collection_dict,
+                    }
+                )
+            else:
+                errors.append({"season_id": season_id, "error": "合集不存在"})
+        except Exception as e:
+            logger.exception(f"批量更新合集失败: season_id={season_id}, error={e}")
+            errors.append({"season_id": season_id, "error": "更新失败"})
+
+    session.commit()
+
+    return {
+        "status": "success",
+        "code": 200,
+        "message": f"批量更新完成，成功{len(results)}个，失败{len(errors)}个",
+        "data": {"succeeded": results, "failed": errors},
+    }

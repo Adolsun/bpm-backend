@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple
 from datetime import datetime
 
-from sqlmodel import Session, select
+from sqlmodel import Session, select, update
 from models.collection import Collection
 from models.video import Video
 from sqlalchemy import delete
@@ -20,18 +20,16 @@ def create_collection_to_db(session: Session, collection_data: dict) -> Collecti
     return collection
 
 
-# 从数据库获取合集信息
-def get_collection_from_db(
-    session: Session, season_id: int
-) -> List[Tuple[Collection, Video]]:
-    statement = (
-        select(Collection, Video)
-        .join(Video, Collection.season_id == Video.collection_id)
-        .where(Collection.season_id == season_id)
-        .order_by(Video.order_index)
-    )
-    results = session.exec(statement).all()
-    return results
+def batch_update_collection_order(session: Session, updates: List[dict]) -> int:
+    for item in updates:
+        stmt = (
+            update(Collection)
+            .where(Collection.season_id == item["season_id"])
+            .values(order_index=item["order_index"])
+        )
+        session.execute(stmt)
+    session.flush()
+    return len(updates)
 
 
 # 从数据库获取所有合集信息
@@ -39,7 +37,12 @@ def get_all_collections_from_db(session: Session) -> List[Tuple[Collection, Vide
     statement = (
         select(Collection, Video)
         .join(Video, Collection.season_id == Video.collection_id)
-        .order_by(Collection.order_index, Video.order_index)
+        .order_by(
+            Collection.order_index,
+            Collection.created_at.desc(),
+            Collection.season_id,
+            Video.order_index,
+        )
     )
     results = session.exec(statement).all()
     return results
