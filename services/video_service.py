@@ -14,7 +14,11 @@ def create_video_to_db(session: Session, videos_to_create: list) -> list[Video]:
 
 # 根据合集ID从数据库获取视频列表
 def get_videos_by_collection_from_db(session: Session, collection_id: int) -> List[Video]:
-    statement = select(Video).where(Video.collection_id == collection_id)
+    statement = (
+        select(Video)
+        .where(Video.collection_id == collection_id)
+        .order_by(Video.order_index, Video.bvid)
+    )
     videos = session.exec(statement).all()
     return videos
 
@@ -53,6 +57,10 @@ def update_video_watched_count_to_db(
     session.flush()
     statement1 = select(Collection).where(Collection.season_id == season_id)
     collection = session.exec(statement1).first()
-    statement2 = select(Video).where(Video.collection_id == season_id)
+    statement2 = (
+        select(Video)
+        .where(Video.collection_id == season_id)
+        .order_by(Video.order_index, Video.bvid)
+    )
     orm_videos = session.exec(statement2).all()
     return collection, orm_videos
