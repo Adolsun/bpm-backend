@@ -7,7 +7,8 @@ This document provides guidelines for AI agents working in this repository.
 - **Project Name**: bpm-backend (B站合集视频观看进度管理工具)
 - **Type**: Python FastAPI backend
 - **Database**: MySQL with SQLAlchemy/SQLModel
-- **Package Manager**: uv
+- **Package Manager**: uv（同时保留 `requirements.txt` 供部署环境使用）
+- **API Docs**: 接口文档见 `API.md`
 
 ## Build & Development Commands
 
@@ -127,6 +128,8 @@ project/
 ├── main.py              # FastAPI app entry point
 ├── config.py            # Configuration settings
 ├── database.py          # Database engine and session
+├── .env.template        # 环境变量模板（复制为 .env 后填写）
+├── API.md               # API 接口文档
 ├── models/              # SQLModel ORM classes
 │   ├── collection.py
 │   └── video.py
@@ -233,3 +236,5 @@ DB_HOST = os.getenv("DB_HOST", "localhost")  # with default
 - **Database connection**: Ensure MySQL is running and `.env` is configured
 - **Port conflicts**: Default port is 8001 (configurable in `main.py`)
 - **Import errors**: Ensure you're running from project root with activated venv
+- **API docs**: Endpoint details are in `API.md`
+- **Logs**: `main.py` creates `logs/app.log` on startup
